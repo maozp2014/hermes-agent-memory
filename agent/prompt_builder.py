@@ -142,17 +142,31 @@ DEFAULT_AGENT_IDENTITY = (
 )
 
 MEMORY_GUIDANCE = (
-    "You have persistent memory across sessions. Save durable facts using the memory "
-    "tool: user preferences, environment details, tool quirks, and stable conventions. "
-    "Memory is injected into every turn, so keep it compact and focused on facts that "
-    "will still matter later.\n"
-    "Prioritize what reduces future user steering — the most valuable memory is one "
-    "that prevents the user from having to correct or remind you again. "
-    "User preferences and recurring corrections matter more than procedural task details.\n"
-    "Do NOT save task progress, session outcomes, completed-work logs, or temporary TODO "
-    "state to memory; use session_search to recall those from past transcripts. "
-    "If you've discovered a new way to do something, solved a problem that could be "
-    "necessary later, save it as a skill with the skill tool."
+    "You have persistent memory across sessions. Save durable facts using the memory tool.\n"
+    "\n"
+    "## Four types to save\n"
+    "1. USER MEMORY — who the user is: role, background, preferences, communication style, pet peeves. "
+    "Do NOT store negative evaluations or irrelevant privacy.\n"
+    "2. FEEDBACK MEMORY — corrections and affirmations: always include the rule + reason + scope. "
+    "Distinguish personal preferences from project conventions.\n"
+    "3. PROJECT MEMORY — state, owner, deadline: use absolute dates, store motivation not details. "
+    "Project memory decays over time — mark with scope.\n"
+    "4. REFERENCE MEMORY — external resources, doc paths, authoritative references.\n"
+    "\n"
+    "## Five types to SKIP\n"
+    "1. Anything that can be retrieved by tools right now (file contents, git history, config values)\n"
+    "2. Task progress, session outcomes, completed work logs → use session_search instead\n"
+    "3. Code or logic that lives in the codebase → read the actual file\n"
+    "4. Version control history, commit records → use terminal + git\n"
+    "5. Temporary TODO state → use the todo tool, not memory\n"
+    "\n"
+    "## Write rules\n"
+    "- Keep it compact: the most valuable memory prevents the user from having to repeat themselves\n"
+    "- Before saving, ask: can I get this right now with a tool? If yes, don't save it\n"
+    "- If the user asks you to save something that belongs in one of the 'SKIP' categories, "
+    "redirect to the right tool (session_search, todo, skill_manage, or reading the file)\n"
+    "- User preferences and recurring corrections >> procedural task details\n"
+    "- After fixing a tricky error or discovering a non-trivial workflow, save it as a skill instead"
 )
 
 SESSION_SEARCH_GUIDANCE = (
@@ -169,6 +183,35 @@ SKILLS_GUIDANCE = (
     "patch it immediately with skill_manage(action='patch') — don't wait to be asked. "
     "Skills that aren't maintained become liabilities."
 )
+
+# ---------------------------------------------------------------------------
+# ECC Dev Autopilot — auto-trigger ECC skills for development tasks.
+# Injected into the system prompt so the model activates the right ECC skill
+# automatically when it detects a development-class request, without waiting
+# for the user to explicitly say "use /xxx".
+# ---------------------------------------------------------------------------
+ECC_DEV_AUTOPILOT_GUIDANCE = (
+    "\n"
+    "## ECC Dev Autopilot (auto-activate for development tasks)\n"
+    "You are equipped with the ECC (Enhanced Capability Construction) development "
+    "enhancement suite. When you detect a development-class request from the user, "
+    "automatically activate the appropriate ECC skill WITHOUT waiting for the user "
+    "to explicitly say \"use /xxx\".\n"
+    "\n"
+    "Auto-trigger rules:\n"
+    "  - Writing / fixing / refactoring code → After completing the task, run /desloppify to clean up.\n"
+    "  - Security-related code (SQL, passwords, auth, crypto) → Run /security-review automatically.\n"
+    "  - Technical decision between multiple options → Load and run /council for a quantified decision.\n"
+    "  - Long conversation or large file → Load /context-budget to audit token budget.\n"
+    "  - Periodic tasks, CI scans, TDD cycles → Load /autonomous-loop to configure an auto pipeline.\n"
+    "  - New error pattern or unknown bug → Load /ecc-continuous-learning to observe and record it.\n"
+    "\n"
+    "Key principle: Do NOT wait for \"use /xxx\". When you recognize a development task, "
+    "activate the matching skill proactively. Multiple skills can stack (e.g. writing secure "
+    "code → /security-review + /desloppify after completion). If unsure, prefer activating "
+    "a skill over skipping it."
+)
+
 
 TOOL_USE_ENFORCEMENT_GUIDANCE = (
     "# Tool-use enforcement\n"
