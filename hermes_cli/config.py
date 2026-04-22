@@ -476,6 +476,7 @@ DEFAULT_CONFIG = {
 
     },
 
+<<<<<<< Updated upstream
     # AWS Bedrock provider configuration.
     # Only used when model.provider is "bedrock".
     "bedrock": {
@@ -494,6 +495,7 @@ DEFAULT_CONFIG = {
             "stream_processing_mode": "async",  # "sync" or "async"
             "trace": "disabled",         # "enabled", "disabled", or "enabled_full"
         },
+=======
     },
 
     # Auxiliary model config — provider:model for each side task.

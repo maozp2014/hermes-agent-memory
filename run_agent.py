@@ -98,7 +98,7 @@ from agent.model_metadata import (
 from agent.context_compressor import ContextCompressor
 from agent.subdirectory_hints import SubdirectoryHintTracker
 from agent.prompt_caching import apply_anthropic_cache_control
-from agent.prompt_builder import build_skills_system_prompt, build_context_files_prompt, build_environment_hints, load_soul_md, TOOL_USE_ENFORCEMENT_GUIDANCE, TOOL_USE_ENFORCEMENT_MODELS, DEVELOPER_ROLE_MODELS, GOOGLE_MODEL_OPERATIONAL_GUIDANCE, OPENAI_MODEL_EXECUTION_GUIDANCE
+from agent.prompt_builder import build_skills_system_prompt, build_context_files_prompt, build_environment_hints, load_soul_md, TOOL_USE_ENFORCEMENT_GUIDANCE, TOOL_USE_ENFORCEMENT_MODELS, DEVELOPER_ROLE_MODELS, GOOGLE_MODEL_OPERATIONAL_GUIDANCE, OPENAI_MODEL_EXECUTION_GUIDANCE, ECC_DEV_AUTOPILOT_GUIDANCE
 from agent.usage_pricing import estimate_usage_cost, normalize_usage
 from agent.codex_responses_adapter import (
     _chat_content_to_responses_parts,
@@ -1527,6 +1527,12 @@ class AIAgent:
         if not isinstance(_agent_section, dict):
             _agent_section = {}
         self._tool_use_enforcement = _agent_section.get("tool_use_enforcement", "auto")
+
+        # ECC Dev Autopilot: read ecc.dev_autopilot from config
+        _ecc_cfg = _agent_cfg.get("ecc", {})
+        if not isinstance(_ecc_cfg, dict):
+            _ecc_cfg = {}
+        self._ecc_dev_autopilot = _ecc_cfg.get("dev_autopilot", True)
 
         # Initialize context compressor for automatic context management
         # Compresses conversation when approaching model's context limit
@@ -3970,6 +3976,67 @@ class AIAgent:
 
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Taste Memory: 用户输出风格偏好生成
+# ─────────────────────────────────────────────────────────────────────────────
+_TASTE_DEFAULT = {
+    "output_style": {
+        "detail_level":   {"value": "concise"},
+        "emoji_usage":     {"value": "moderate"},
+        "language":        {"value": "chinese"},
+        "code_comments":   {"value": "chinese"},
+        "tone":           {"value": "friendly"},
+    },
+    "working_style": {
+        "decision_making":  {"value": "recommend_then_ask"},
+        "error_handling":   {"value": "explain_then_fix"},
+        "exploration":      {"value": "depth_first"},
+    },
+}
+
+_TASTE_VALUE_LABELS = {
+    ("detail_level", "concise"): "回复简洁明了，直奔主题，避免冗余解释。",
+    ("detail_level", "brief"):    "回复简短精炼，每个要点不超过两句话。",
+    ("detail_level", "detailed"): "提供详细分析，包含背景、步骤、风险、替代方案。",
+    ("detail_level", "exhaustive"): "尽可能全面，涵盖所有相关细节和边缘情况。",
+    ("emoji_usage", "none"):      "避免使用 emoji，保持纯文本风格。",
+    ("emoji_usage", "sparse"):    "少量使用 emoji，每段最多 1 个。",
+    ("emoji_usage", "moderate"):  "适当使用 emoji 增强可读性。",
+    ("emoji_usage", "heavy"):     "积极使用 emoji，让内容更生动有趣。",
+    ("language", "chinese"):       "所有输出优先使用中文。",
+    ("language", "english"):      "输出使用英文。",
+    ("language", "bilingual"):    "中文输出，关键术语附英文原文。",
+    ("code_comments", "chinese"): "代码注释使用中文。",
+    ("code_comments", "english"): "代码注释使用英文。",
+    ("tone", "formal"):           "语气正式、严谨。",
+    ("tone", "playful"):          "语气轻松活泼，可以适当幽默。",
+    ("decision_making", "autonomous"):           "自主决策，不需要逐条确认，直接执行最优方案。",
+    ("decision_making", "recommend_then_ask"):   "给出推荐方案并说明理由，让用户做最终决定。",
+    ("decision_making", "always_ask"):          "重要决策前必须询问用户意见，不擅自行动。",
+    ("error_handling", "explain_then_fix"):     "遇到错误先分析原因再修复，解释清楚再动手。",
+    ("error_handling", "fix_then_tell"):        "遇到问题先尝试自动修复，修复后简要告知结果。",
+    ("exploration", "breadth_first"):            "先全面了解全貌，再深入细节。",
+    ("exploration", "depth_first"):              "先深入核心问题，解决后再扩展。",
+}
+
+
+def _build_taste_guidance(taste: dict) -> str:
+    """从味觉档案生成人类可读的引导文本"""
+    parts = []
+    profile = taste.get("profile", {})
+    for section in ("output_style", "working_style"):
+        for key, dim in profile.get(section, {}).items():
+            val = dim.get("value") or _TASTE_DEFAULT.get(section, {}).get(key, {}).get("value", "")
+            label = _TASTE_VALUE_LABELS.get((key, val), "")
+            if label and label not in parts:
+                parts.append(label)
+    return " | ".join(parts)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AIAgent._build_system_prompt
+# ─────────────────────────────────────────────────────────────────────────────
+
     def _build_system_prompt(self, system_message: str = None) -> str:
         """
         Assemble the full system prompt from all layers.
@@ -4073,6 +4140,20 @@ class AIAgent:
             except Exception:
                 pass
 
+        # ── Taste Memory: 用户输出风格偏好（自动注入）─────────────
+        _taste_file = get_hermes_home() / "taste_profile.json"
+        if _taste_file.exists():
+            try:
+                import json as _json
+                with open(_taste_file, encoding="utf-8") as _f:
+                    _taste = _json.load(_f)
+                # 提取味觉引导（复用 taste_memory.py 的逻辑）
+                _guidance = _build_taste_guidance(_taste)
+                if _guidance:
+                    prompt_parts.append("## 用户输出风格偏好（来自味觉记忆）\n" + _guidance + "\n")
+            except Exception:
+                pass
+
         has_skills_tools = any(name in self.valid_tool_names for name in ['skills_list', 'skill_view', 'skill_manage'])
         if has_skills_tools:
             avail_toolsets = {
@@ -4090,6 +4171,11 @@ class AIAgent:
             skills_prompt = ""
         if skills_prompt:
             prompt_parts.append(skills_prompt)
+
+        # ECC Dev Autopilot: auto-trigger ECC skills for development tasks.
+        # Only injected when ecc.dev_autopilot is True (default: True).
+        if self._ecc_dev_autopilot:
+            prompt_parts.append(ECC_DEV_AUTOPILOT_GUIDANCE)
 
         if not self.skip_context_files:
             # Use TERMINAL_CWD for context file discovery when set (gateway
