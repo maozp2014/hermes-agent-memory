@@ -1,8 +1,16 @@
 """Tests for Xiaomi MiMo provider support."""
 
 import os
+import sys
+import types
 
 import pytest
+
+# Ensure dotenv doesn't interfere
+if "dotenv" not in sys.modules:
+    fake_dotenv = types.ModuleType("dotenv")
+    fake_dotenv.load_dotenv = lambda *args, **kwargs: None
+    sys.modules["dotenv"] = fake_dotenv
 
 from hermes_cli.auth import (
     PROVIDER_REGISTRY,
@@ -136,15 +144,13 @@ class TestXiaomiModelCatalog:
         assert PROVIDER_TO_MODELS_DEV["xiaomi"] == "xiaomi"
 
     def test_static_model_list_fallback(self):
-        """Static _PROVIDER_MODELS fallback must exist for model picker.
-
-        We only assert the provider key is present — the specific model
-        names are data that changes with upstream releases and doesn't
-        belong in tests.
-        """
+        """Static _PROVIDER_MODELS fallback must exist for model picker."""
         from hermes_cli.models import _PROVIDER_MODELS
         assert "xiaomi" in _PROVIDER_MODELS
-        assert len(_PROVIDER_MODELS["xiaomi"]) >= 1
+        models = _PROVIDER_MODELS["xiaomi"]
+        assert "mimo-v2-pro" in models
+        assert "mimo-v2-omni" in models
+        assert "mimo-v2-flash" in models
 
     def test_list_agentic_models_mock(self, monkeypatch):
         """When models.dev returns Xiaomi data, list_agentic_models should return models."""

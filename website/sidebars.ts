@@ -21,7 +21,6 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'user-guide/cli',
-        'user-guide/tui',
         'user-guide/configuration',
         'user-guide/sessions',
         'user-guide/profiles',
@@ -37,7 +36,6 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'user-guide/features/overview',
-        'user-guide/features/tool-gateway',
         {
           type: 'category',
           label: 'Core',
@@ -51,7 +49,6 @@ const sidebars: SidebarsConfig = {
             'user-guide/features/personality',
             'user-guide/features/skins',
             'user-guide/features/plugins',
-            'user-guide/features/built-in-plugins',
           ],
         },
         {
@@ -81,7 +78,6 @@ const sidebars: SidebarsConfig = {
           label: 'Management',
           items: [
             'user-guide/features/web-dashboard',
-            'user-guide/features/dashboard-plugins',
           ],
         },
         {
@@ -123,7 +119,6 @@ const sidebars: SidebarsConfig = {
         'user-guide/messaging/wecom-callback',
         'user-guide/messaging/weixin',
         'user-guide/messaging/bluebubbles',
-        'user-guide/messaging/qqbot',
         'user-guide/messaging/open-webui',
         'user-guide/messaging/webhooks',
       ],
@@ -141,7 +136,6 @@ const sidebars: SidebarsConfig = {
         'user-guide/features/honcho',
         'user-guide/features/provider-routing',
         'user-guide/features/fallback-providers',
-        'user-guide/features/credential-pools',
       ],
     },
     {
@@ -159,14 +153,10 @@ const sidebars: SidebarsConfig = {
         'guides/use-voice-mode-with-hermes',
         'guides/build-a-hermes-plugin',
         'guides/automate-with-cron',
-        'guides/automation-templates',
         'guides/cron-troubleshooting',
         'guides/work-with-skills',
         'guides/delegation-patterns',
-        'guides/github-pr-review-agent',
-        'guides/webhook-github-pr-review',
         'guides/migrate-from-openclaw',
-        'guides/aws-bedrock',
       ],
     },
     {

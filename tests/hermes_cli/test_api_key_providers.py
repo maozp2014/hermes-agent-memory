@@ -1,8 +1,16 @@
 """Tests for API-key provider support (z.ai/GLM, Kimi, MiniMax, AI Gateway)."""
 
 import os
+import sys
+import types
 
 import pytest
+
+# Ensure dotenv doesn't interfere
+if "dotenv" not in sys.modules:
+    fake_dotenv = types.ModuleType("dotenv")
+    fake_dotenv.load_dotenv = lambda *args, **kwargs: None
+    sys.modules["dotenv"] = fake_dotenv
 
 from hermes_cli.auth import (
     PROVIDER_REGISTRY,
@@ -33,7 +41,6 @@ class TestProviderRegistry:
         ("huggingface", "Hugging Face", "api_key"),
         ("zai", "Z.AI / GLM", "api_key"),
         ("xai", "xAI", "api_key"),
-        ("nvidia", "NVIDIA NIM", "api_key"),
         ("kimi-coding", "Kimi / Moonshot", "api_key"),
         ("minimax", "MiniMax", "api_key"),
         ("minimax-cn", "MiniMax (China)", "api_key"),
@@ -58,12 +65,6 @@ class TestProviderRegistry:
         assert pconfig.base_url_env_var == "XAI_BASE_URL"
         assert pconfig.inference_base_url == "https://api.x.ai/v1"
 
-    def test_nvidia_env_vars(self):
-        pconfig = PROVIDER_REGISTRY["nvidia"]
-        assert pconfig.api_key_env_vars == ("NVIDIA_API_KEY",)
-        assert pconfig.base_url_env_var == "NVIDIA_BASE_URL"
-        assert pconfig.inference_base_url == "https://integrate.api.nvidia.com/v1"
-
     def test_copilot_env_vars(self):
         pconfig = PROVIDER_REGISTRY["copilot"]
         assert pconfig.api_key_env_vars == ("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")
@@ -71,11 +72,7 @@ class TestProviderRegistry:
 
     def test_kimi_env_vars(self):
         pconfig = PROVIDER_REGISTRY["kimi-coding"]
-        # KIMI_API_KEY is the primary env var; KIMI_CODING_API_KEY is a
-        # secondary fallback for Kimi Code sk-kimi- keys so users don't
-        # have to overload the same variable.
-        assert "KIMI_API_KEY" in pconfig.api_key_env_vars
-        assert "KIMI_CODING_API_KEY" in pconfig.api_key_env_vars
+        assert pconfig.api_key_env_vars == ("KIMI_API_KEY",)
         assert pconfig.base_url_env_var == "KIMI_BASE_URL"
 
     def test_minimax_env_vars(self):
@@ -925,13 +922,17 @@ class TestKimiMoonshotModelListIsolation:
         leaked = set(moonshot_models) & coding_plan_only
         assert not leaked, f"Moonshot list contains Coding Plan-only models: {leaked}"
 
-    def test_moonshot_list_non_empty(self):
+    def test_moonshot_list_contains_shared_models(self):
         from hermes_cli.main import _PROVIDER_MODELS
-        assert len(_PROVIDER_MODELS["moonshot"]) >= 1
+        moonshot_models = _PROVIDER_MODELS["moonshot"]
+        assert "kimi-k2.5" in moonshot_models
+        assert "kimi-k2-thinking" in moonshot_models
 
-    def test_coding_plan_list_non_empty(self):
+    def test_coding_plan_list_contains_plan_specific_models(self):
         from hermes_cli.main import _PROVIDER_MODELS
-        assert len(_PROVIDER_MODELS["kimi-coding"]) >= 1
+        coding_models = _PROVIDER_MODELS["kimi-coding"]
+        assert "kimi-for-coding" in coding_models
+        assert "kimi-k2-thinking-turbo" in coding_models
 
 
 # =============================================================================
@@ -944,12 +945,14 @@ class TestHuggingFaceModels:
     def test_main_provider_models_has_huggingface(self):
         from hermes_cli.main import _PROVIDER_MODELS
         assert "huggingface" in _PROVIDER_MODELS
-        assert len(_PROVIDER_MODELS["huggingface"]) >= 1
+        models = _PROVIDER_MODELS["huggingface"]
+        assert len(models) >= 6, "Expected at least 6 curated HF models"
 
     def test_models_py_has_huggingface(self):
         from hermes_cli.models import _PROVIDER_MODELS
         assert "huggingface" in _PROVIDER_MODELS
-        assert len(_PROVIDER_MODELS["huggingface"]) >= 1
+        models = _PROVIDER_MODELS["huggingface"]
+        assert len(models) >= 6
 
     def test_model_lists_match(self):
         """Model lists in main.py and models.py should be identical."""

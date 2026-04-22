@@ -159,34 +159,18 @@ class TestCodeExecutionTZ:
         return _json.dumps({"error": f"unexpected tool call: {function_name}"})
 
     def test_tz_injected_when_configured(self):
-        """When HERMES_TIMEZONE is set, child process sees TZ env var.
-
-        Verified alongside leak-prevention + empty-TZ handling in one
-        subprocess call so we don't pay 3x the subprocess startup cost
-        (each execute_code spawns a real Python subprocess ~3s).
-        """
+        """When HERMES_TIMEZONE is set, child process sees TZ env var."""
         import json as _json
         os.environ["HERMES_TIMEZONE"] = "Asia/Kolkata"
 
-        # One subprocess, three things checked:
-        #   1) TZ is injected as "Asia/Kolkata"
-        #   2) HERMES_TIMEZONE itself does NOT leak into the child env
-        probe = (
-            'import os; '
-            'print("TZ=" + os.environ.get("TZ", "NOT_SET")); '
-            'print("HERMES_TIMEZONE=" + os.environ.get("HERMES_TIMEZONE", "NOT_SET"))'
-        )
         with patch("model_tools.handle_function_call", side_effect=self._mock_handle):
             result = _json.loads(self._execute_code(
-                code=probe,
-                task_id="tz-combined-test",
+                code='import os; print(os.environ.get("TZ", "NOT_SET"))',
+                task_id="tz-test",
                 enabled_tools=[],
             ))
         assert result["status"] == "success"
-        assert "TZ=Asia/Kolkata" in result["output"]
-        assert "HERMES_TIMEZONE=NOT_SET" in result["output"], (
-            "HERMES_TIMEZONE should not leak into child env (only TZ)"
-        )
+        assert "Asia/Kolkata" in result["output"]
 
     def test_tz_not_injected_when_empty(self):
         """When HERMES_TIMEZONE is not set, child process has no TZ."""
@@ -197,6 +181,20 @@ class TestCodeExecutionTZ:
             result = _json.loads(self._execute_code(
                 code='import os; print(os.environ.get("TZ", "NOT_SET"))',
                 task_id="tz-test-empty",
+                enabled_tools=[],
+            ))
+        assert result["status"] == "success"
+        assert "NOT_SET" in result["output"]
+
+    def test_hermes_timezone_not_leaked_to_child(self):
+        """HERMES_TIMEZONE itself must NOT appear in child env (only TZ)."""
+        import json as _json
+        os.environ["HERMES_TIMEZONE"] = "Asia/Kolkata"
+
+        with patch("model_tools.handle_function_call", side_effect=self._mock_handle):
+            result = _json.loads(self._execute_code(
+                code='import os; print(os.environ.get("HERMES_TIMEZONE", "NOT_SET"))',
+                task_id="tz-leak-test",
                 enabled_tools=[],
             ))
         assert result["status"] == "success"

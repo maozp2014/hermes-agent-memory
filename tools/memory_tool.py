@@ -86,6 +86,50 @@ _INVISIBLE_CHARS = {
     '\u202a', '\u202b', '\u202c', '\u202d', '\u202e',
 }
 
+# Quality gate — patterns that suggest content belongs in a different tool.
+# Returns a redirect dict if the content looks like a SKIP category, else None.
+_MEMORY_SKIP_PATTERNS = [
+    # Task progress / session outcomes / completed work logs
+    (
+        r'(完成|进展|进度|花了|用了多久|哪个session|结果如何|outcome|progress|'
+        r'花了多少时间|这次对话|上次对话|本周任务)',
+        "task_progress",
+        "session_search — 查询历史会话记录来回顾任务进度和完成情况",
+    ),
+    # Code snippets, function/class definitions
+    (
+        r'^(def |class |import |from\s+\w+\s+import |async def |```(|python|js|ts|yaml|json)\s*$)',
+        "code_snippet",
+        "直接读取代码文件或使用 skill_manage 保存工作流，不要存代码片段到记忆",
+    ),
+    # Git / version control history
+    (
+        r'(git\s+(log|diff|blame|show|stash|branch|commit|merge|rebase|'
+        r'HEAD~\d|origin/|PR\s+#)|commit\s+[0-9a-f]{7,})',
+        "git_history",
+        "terminal + git 命令查看版本历史，或用 session_search 查相关讨论",
+    ),
+    # File/directory listings or contents
+    (
+        r'(^\s*(?:/|[a-z]:\\).*?\.(py|js|ts|md|yaml|json|toml|go|rs|c|cpp)\s*$|'
+        r'文件内容|file content|文件路径|path:)',
+        "file_content",
+        "直接读取文件或查文档，不要存文件内容到记忆",
+    ),
+    # Temporary TODO / reminders
+    (
+        r'(待办|提醒我|稍后|下次|TODO|FIXME|以后再|remind me to)',
+        "todo_reminder",
+        "todo 工具更适合记录待办事项",
+    ),
+    # Config values / secrets
+    (
+        r'(api_key|api[_-]?key|secret|password|token|credential)\s*[=:]\s*[\'"][^\'\"]+[\'"]',
+        "secrets",
+        "敏感信息不要存记忆，配置在 .env 或 config.yaml 中",
+    ),
+]
+
 
 def _scan_memory_content(content: str) -> Optional[str]:
     """Scan memory content for injection/exfil patterns. Returns error string if blocked."""
@@ -99,6 +143,30 @@ def _scan_memory_content(content: str) -> Optional[str]:
         if re.search(pattern, content, re.IGNORECASE):
             return f"Blocked: content matches threat pattern '{pid}'. Memory entries are injected into the system prompt and must not contain injection or exfiltration payloads."
 
+    return None
+
+
+def _check_memory_quality(content: str) -> Optional[Dict[str, str]]:
+    """Gate for content quality — detect items that belong in a different tool.
+
+    Returns a redirect dict with keys: category, suggestion, rule
+    Returns None if content is appropriate for memory.
+    """
+    for pattern, category, suggestion in _MEMORY_SKIP_PATTERNS:
+        if re.search(pattern, content, re.IGNORECASE | re.MULTILINE):
+            # Only flag if the match looks like the PRIMARY content, not incidental mention.
+            # Heuristic: if the first non-empty line matches, it's the primary content.
+            first_meaningful = content.strip().split('\n')[0].strip()
+            if re.search(pattern, first_meaningful, re.IGNORECASE | re.MULTILINE):
+                return {
+                    "category": category,
+                    "suggestion": suggestion,
+                    "rule": (
+                        f"[SKIP:{category}] 这类内容不适合存记忆。"
+                        f"建议：{suggestion}。"
+                        f"如果确定要存，请调整格式后再试。"
+                    ),
+                }
     return None
 
 
@@ -229,6 +297,15 @@ class MemoryStore:
         scan_error = _scan_memory_content(content)
         if scan_error:
             return {"success": False, "error": scan_error}
+
+        # Quality gate: detect content that belongs in a different tool
+        quality_check = _check_memory_quality(content)
+        if quality_check:
+            return {
+                "success": False,
+                "error": quality_check["rule"],
+                "redirect": quality_check["suggestion"],
+            }
 
         with self._file_lock(self._path_for(target)):
             # Re-read from disk under lock to pick up writes from other sessions
@@ -513,27 +590,33 @@ def check_memory_requirements() -> bool:
 MEMORY_SCHEMA = {
     "name": "memory",
     "description": (
-        "Save durable information to persistent memory that survives across sessions. "
-        "Memory is injected into future turns, so keep it compact and focused on facts "
-        "that will still matter later.\n\n"
-        "WHEN TO SAVE (do this proactively, don't wait to be asked):\n"
-        "- User corrects you or says 'remember this' / 'don't do that again'\n"
-        "- User shares a preference, habit, or personal detail (name, role, timezone, coding style)\n"
-        "- You discover something about the environment (OS, installed tools, project structure)\n"
-        "- You learn a convention, API quirk, or workflow specific to this user's setup\n"
-        "- You identify a stable fact that will be useful again in future sessions\n\n"
-        "PRIORITY: User preferences and corrections > environment facts > procedural knowledge. "
-        "The most valuable memory prevents the user from having to repeat themselves.\n\n"
-        "Do NOT save task progress, session outcomes, completed-work logs, or temporary TODO "
-        "state to memory; use session_search to recall those from past transcripts.\n"
-        "If you've discovered a new way to do something, solved a problem that could be "
-        "necessary later, save it as a skill with the skill tool.\n\n"
-        "TWO TARGETS:\n"
-        "- 'user': who the user is -- name, role, preferences, communication style, pet peeves\n"
-        "- 'memory': your notes -- environment facts, project conventions, tool quirks, lessons learned\n\n"
+        "Save durable information to persistent memory that survives across sessions.\n\n"
+        "## Four types to save\n"
+        "1. USER MEMORY (target='user') — user profile: role, background, preferences, "
+        "communication style, pet peeves. Do NOT store negative evaluations or irrelevant privacy.\n"
+        "2. FEEDBACK MEMORY — corrections and affirmations with rule + reason + scope.\n"
+        "3. PROJECT MEMORY — state, owner, deadline (absolute dates, motivation not details).\n"
+        "4. REFERENCE MEMORY — external resources, doc paths, authoritative references.\n\n"
+        "## Five types to SKIP\n"
+        "1. Anything retrievable by tools right now (file contents, git history)\n"
+        "2. Task progress, completed work logs → use session_search\n"
+        "3. Code/logic that lives in codebase → read the file\n"
+        "4. Version control history → use terminal + git\n"
+        "5. Temporary TODO state → use the todo tool\n\n"
+        "## Redirect when asked to save the wrong thing\n"
+        "If user asks to save something in a SKIP category, redirect them:\n"
+        "  - 'what did we do last time?' / project history → session_search\n"
+        "  - 'remind me to do X' / task list → todo tool\n"
+        "  - workflow / approach / error fix → skill_manage\n"
+        "  - current code / file contents → read the file directly\n\n"
+        "## Write rules\n"
+        "- Keep it compact — the most valuable memory prevents the user from repeating themselves\n"
+        "- Before saving, ask: can I get this right now with a tool? If yes, don't save it\n"
+        "- User preferences and corrections >> task details\n"
+        "- Complex workflows (5+ tool calls) → save as skill instead\n\n"
         "ACTIONS: add (new entry), replace (update existing -- old_text identifies it), "
         "remove (delete -- old_text identifies it).\n\n"
-        "SKIP: trivial/obvious info, things easily re-discovered, raw data dumps, and temporary task state."
+        "SKIP: trivial/obvious info, things easily re-discovered, raw data dumps, temporary task state."
     ),
     "parameters": {
         "type": "object",

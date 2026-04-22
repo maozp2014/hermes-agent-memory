@@ -1,70 +1,69 @@
-/venv/
-/_pycache/
-*.pyc*
+# Byte-compiled / optimized / DLL files
 __pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.egg-info/
+*.egg
+*.whl
+
+# Virtual environments
+venv/
 .venv/
+.env/
+env/
+
+# Node modules
+node_modules/
+
+# Python build artifacts
+build/
+dist/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.log
+
+# IDE
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Local config & secrets
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.development
-.env.test
-export*
-__pycache__/model_tools.cpython-310.pyc
-__pycache__/web_tools.cpython-310.pyc
-logs/
-data/
-.pytest_cache/
-tmp/
-temp_vision_images/
-hermes-*/*
-examples/
-tests/quick_test_dataset.jsonl
-tests/sample_dataset.jsonl
-run_datagen_kimik2-thinking.sh
-run_datagen_megascience_glm4-6.sh
-run_datagen_sonnet.sh
-source-data/*
-run_datagen_megascience_glm4-6.sh
-data/*
-node_modules/
-browser-use/
-agent-browser/
-# Private keys
-*.ppk
+.env.*
 *.pem
-privvy*
-images/
-__pycache__/
-hermes_agent.egg-info/
-wandb/
-testlogs
+*.key
+config.local.yaml
 
-# CLI config (may contain sensitive SSH paths)
-cli-config.yaml
+# Backup files
+*.bak
+*.backup
+*.orig
 
-# Skills Hub state (lives in ~/.hermes/skills/.hub/ at runtime, but just in case)
-skills/.hub/
-ignored/
-.worktrees/
-environments/benchmarks/evals/
+# Local research/docs (NOT project files)
+awesome-design-md/
+everything-claude-code/
+markitdown/
 
-# Web UI build output
+# Docker
+.dockerignore
+
+# Compiled CLI web assets
 hermes_cli/web_dist/
 
-# Web UI assets — synced from @nous-research/ui at build time via
-# `npm run sync-assets` (see web/package.json).
-web/public/fonts/
-web/public/ds-assets/
-
-# Release script temp files
-.release_notes.md
-mini-swe-agent/
+# Large binary samples (not source code)
+tools/neutts_samples/
+*.wav
+*.mp3
+*.mp4
 
 # Nix
-.direnv/
-.nix-stamps/
 result
-website/static/api/skills-index.json
+result-*

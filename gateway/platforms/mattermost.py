@@ -304,7 +304,7 @@ class MattermostAdapter(BasePlatformAdapter):
         )
 
     async def edit_message(
-        self, chat_id: str, message_id: str, content: str, *, finalize: bool = False
+        self, chat_id: str, message_id: str, content: str
     ) -> SendResult:
         """Edit an existing post."""
         formatted = self.format_message(content)
@@ -410,6 +410,7 @@ class MattermostAdapter(BasePlatformAdapter):
             logger.warning("Mattermost: blocked unsafe URL (SSRF protection)")
             return await self.send(chat_id, f"{caption or ''}\n{url}".strip(), reply_to)
 
+        import asyncio
         import aiohttp
 
         last_exc = None
@@ -717,12 +718,6 @@ class MattermostAdapter(BasePlatformAdapter):
             thread_id=thread_id,
         )
 
-        # Per-channel ephemeral prompt
-        from gateway.platforms.base import resolve_channel_prompt
-        _channel_prompt = resolve_channel_prompt(
-            self.config.extra, channel_id, None,
-        )
-
         msg_event = MessageEvent(
             text=message_text,
             message_type=msg_type,
@@ -731,7 +726,6 @@ class MattermostAdapter(BasePlatformAdapter):
             message_id=post_id,
             media_urls=media_urls if media_urls else None,
             media_types=media_types if media_types else None,
-            channel_prompt=_channel_prompt,
         )
 
         await self.handle_message(msg_event)

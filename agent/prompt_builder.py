@@ -142,23 +142,31 @@ DEFAULT_AGENT_IDENTITY = (
 )
 
 MEMORY_GUIDANCE = (
-    "You have persistent memory across sessions. Save durable facts using the memory "
-    "tool: user preferences, environment details, tool quirks, and stable conventions. "
-    "Memory is injected into every turn, so keep it compact and focused on facts that "
-    "will still matter later.\n"
-    "Prioritize what reduces future user steering — the most valuable memory is one "
-    "that prevents the user from having to correct or remind you again. "
-    "User preferences and recurring corrections matter more than procedural task details.\n"
-    "Do NOT save task progress, session outcomes, completed-work logs, or temporary TODO "
-    "state to memory; use session_search to recall those from past transcripts. "
-    "If you've discovered a new way to do something, solved a problem that could be "
-    "necessary later, save it as a skill with the skill tool.\n"
-    "Write memories as declarative facts, not instructions to yourself. "
-    "'User prefers concise responses' ✓ — 'Always respond concisely' ✗. "
-    "'Project uses pytest with xdist' ✓ — 'Run tests with pytest -n 4' ✗. "
-    "Imperative phrasing gets re-read as a directive in later sessions and can "
-    "cause repeated work or override the user's current request. Procedures and "
-    "workflows belong in skills, not memory."
+    "You have persistent memory across sessions. Save durable facts using the memory tool.\n"
+    "\n"
+    "## Four types to save\n"
+    "1. USER MEMORY — who the user is: role, background, preferences, communication style, pet peeves. "
+    "Do NOT store negative evaluations or irrelevant privacy.\n"
+    "2. FEEDBACK MEMORY — corrections and affirmations: always include the rule + reason + scope. "
+    "Distinguish personal preferences from project conventions.\n"
+    "3. PROJECT MEMORY — state, owner, deadline: use absolute dates, store motivation not details. "
+    "Project memory decays over time — mark with scope.\n"
+    "4. REFERENCE MEMORY — external resources, doc paths, authoritative references.\n"
+    "\n"
+    "## Five types to SKIP\n"
+    "1. Anything that can be retrieved by tools right now (file contents, git history, config values)\n"
+    "2. Task progress, session outcomes, completed work logs → use session_search instead\n"
+    "3. Code or logic that lives in the codebase → read the actual file\n"
+    "4. Version control history, commit records → use terminal + git\n"
+    "5. Temporary TODO state → use the todo tool, not memory\n"
+    "\n"
+    "## Write rules\n"
+    "- Keep it compact: the most valuable memory prevents the user from having to repeat themselves\n"
+    "- Before saving, ask: can I get this right now with a tool? If yes, don't save it\n"
+    "- If the user asks you to save something that belongs in one of the 'SKIP' categories, "
+    "redirect to the right tool (session_search, todo, skill_manage, or reading the file)\n"
+    "- User preferences and recurring corrections >> procedural task details\n"
+    "- After fixing a tricky error or discovering a non-trivial workflow, save it as a skill instead"
 )
 
 SESSION_SEARCH_GUIDANCE = (
@@ -175,6 +183,35 @@ SKILLS_GUIDANCE = (
     "patch it immediately with skill_manage(action='patch') — don't wait to be asked. "
     "Skills that aren't maintained become liabilities."
 )
+
+# ---------------------------------------------------------------------------
+# ECC Dev Autopilot — auto-trigger ECC skills for development tasks.
+# Injected into the system prompt so the model activates the right ECC skill
+# automatically when it detects a development-class request, without waiting
+# for the user to explicitly say "use /xxx".
+# ---------------------------------------------------------------------------
+ECC_DEV_AUTOPILOT_GUIDANCE = (
+    "\n"
+    "## ECC Dev Autopilot (auto-activate for development tasks)\n"
+    "You are equipped with the ECC (Enhanced Capability Construction) development "
+    "enhancement suite. When you detect a development-class request from the user, "
+    "automatically activate the appropriate ECC skill WITHOUT waiting for the user "
+    "to explicitly say \"use /xxx\".\n"
+    "\n"
+    "Auto-trigger rules:\n"
+    "  - Writing / fixing / refactoring code → After completing the task, run /desloppify to clean up.\n"
+    "  - Security-related code (SQL, passwords, auth, crypto) → Run /security-review automatically.\n"
+    "  - Technical decision between multiple options → Load and run /council for a quantified decision.\n"
+    "  - Long conversation or large file → Load /context-budget to audit token budget.\n"
+    "  - Periodic tasks, CI scans, TDD cycles → Load /autonomous-loop to configure an auto pipeline.\n"
+    "  - New error pattern or unknown bug → Load /ecc-continuous-learning to observe and record it.\n"
+    "\n"
+    "Key principle: Do NOT wait for \"use /xxx\". When you recognize a development task, "
+    "activate the matching skill proactively. Multiple skills can stack (e.g. writing secure "
+    "code → /security-review + /desloppify after completion). If unsure, prefer activating "
+    "a skill over skipping it."
+)
+
 
 TOOL_USE_ENFORCEMENT_GUIDANCE = (
     "# Tool-use enforcement\n"
@@ -301,9 +338,7 @@ PLATFORM_HINTS = {
     ),
     "telegram": (
         "You are on a text messaging communication platform, Telegram. "
-        "Standard markdown is automatically converted to Telegram format. "
-        "Supported: **bold**, *italic*, ~~strikethrough~~, ||spoiler||, "
-        "`inline code`, ```code blocks```, [links](url), and ## headers. "
+        "Please do not use markdown as it does not render. "
         "You can send media files natively: to deliver a file to the user, "
         "include MEDIA:/absolute/path/to/file in your response. Images "
         "(.png, .jpg, .webp) appear as photos, audio (.ogg) sends as voice "
@@ -350,13 +385,7 @@ PLATFORM_HINTS = {
     ),
     "cli": (
         "You are a CLI AI Agent. Try not to use markdown but simple text "
-        "renderable inside a terminal. "
-        "File delivery: there is no attachment channel — the user reads your "
-        "response directly in their terminal. Do NOT emit MEDIA:/path tags "
-        "(those are only intercepted on messaging platforms like Telegram, "
-        "Discord, Slack, etc.; on the CLI they render as literal text). "
-        "When referring to a file you created or changed, just state its "
-        "absolute path in plain text; the user can open it from there."
+        "renderable inside a terminal."
     ),
     "sms": (
         "You are communicating via SMS. Keep responses concise and use plain text "
@@ -625,20 +654,20 @@ def build_skills_system_prompt(
         or get_session_env("HERMES_SESSION_PLATFORM")
         or ""
     )
-    disabled = get_disabled_skill_names()
     cache_key = (
         str(skills_dir.resolve()),
         tuple(str(d) for d in external_dirs),
         tuple(sorted(str(t) for t in (available_tools or set()))),
         tuple(sorted(str(ts) for ts in (available_toolsets or set()))),
         _platform_hint,
-        tuple(sorted(disabled)),
     )
     with _SKILLS_PROMPT_CACHE_LOCK:
         cached = _SKILLS_PROMPT_CACHE.get(cache_key)
         if cached is not None:
             _SKILLS_PROMPT_CACHE.move_to_end(cache_key)
             return cached
+
+    disabled = get_disabled_skill_names()
 
     # ── Layer 2: disk snapshot ────────────────────────────────────────
     snapshot = _load_skills_snapshot(skills_dir)
@@ -666,7 +695,7 @@ def build_skills_system_prompt(
             ):
                 continue
             skills_by_category.setdefault(category, []).append(
-                (frontmatter_name, entry.get("description", ""))
+                (skill_name, entry.get("description", ""))
             )
         category_descriptions = {
             str(k): str(v)
@@ -691,7 +720,7 @@ def build_skills_system_prompt(
             ):
                 continue
             skills_by_category.setdefault(entry["category"], []).append(
-                (entry["frontmatter_name"], entry["description"])
+                (skill_name, entry["description"])
             )
 
         # Read category-level DESCRIPTION.md files
@@ -734,10 +763,9 @@ def build_skills_system_prompt(
                     continue
                 entry = _build_snapshot_entry(skill_file, ext_dir, frontmatter, desc)
                 skill_name = entry["skill_name"]
-                frontmatter_name = entry["frontmatter_name"]
-                if frontmatter_name in seen_skill_names:
+                if skill_name in seen_skill_names:
                     continue
-                if frontmatter_name in disabled or skill_name in disabled:
+                if entry["frontmatter_name"] in disabled or skill_name in disabled:
                     continue
                 if not _skill_should_show(
                     extract_skill_conditions(frontmatter),
@@ -745,9 +773,9 @@ def build_skills_system_prompt(
                     available_toolsets,
                 ):
                     continue
-                seen_skill_names.add(frontmatter_name)
+                seen_skill_names.add(skill_name)
                 skills_by_category.setdefault(entry["category"], []).append(
-                    (frontmatter_name, entry["description"])
+                    (skill_name, entry["description"])
                 )
             except Exception as e:
                 logger.debug("Error reading external skill %s: %s", skill_file, e)

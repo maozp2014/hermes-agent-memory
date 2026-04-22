@@ -160,9 +160,7 @@ class TestExchangeAuthCode:
         assert flow.state == "saved-state"
         assert flow.code_verifier == "saved-verifier"
         assert flow.fetch_token_calls == [{"code": "4/test-auth-code"}]
-        saved = json.loads(setup_module.TOKEN_PATH.read_text())
-        assert saved["token"] == "access-token"
-        assert saved["type"] == "authorized_user"
+        assert json.loads(setup_module.TOKEN_PATH.read_text())["token"] == "access-token"
         assert not setup_module.PENDING_AUTH_PATH.exists()
 
     def test_extracts_code_from_redirect_url_and_checks_state(self, setup_module):

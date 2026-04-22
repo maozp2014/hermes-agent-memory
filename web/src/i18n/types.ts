@@ -68,36 +68,27 @@ export interface Translations {
 
   // ── Status page ──
   status: {
-    actionFailed: string;
-    actionFinished: string;
-    actions: string;
     agent: string;
-    connected: string;
-    connectedPlatforms: string;
-    disconnected: string;
-    error: string;
-    failed: string;
     gateway: string;
-    gatewayFailedToStart: string;
-    lastUpdate: string;
-    noneRunning: string;
-    notRunning: string;
-    pid: string;
-    platformDisconnected: string;
-    platformError: string;
     activeSessions: string;
     recentSessions: string;
-    restartGateway: string;
-    restartingGateway: string;
+    connectedPlatforms: string;
     running: string;
-    runningRemote: string;
-    startFailed: string;
     starting: string;
-    startedInBackground: string;
+    failed: string;
     stopped: string;
-    updateHermes: string;
-    updatingHermes: string;
-    waitingForOutput: string;
+    connected: string;
+    disconnected: string;
+    error: string;
+    notRunning: string;
+    startFailed: string;
+    pid: string;
+    runningRemote: string;
+    noneRunning: string;
+    gatewayFailedToStart: string;
+    lastUpdate: string;
+    platformError: string;
+    platformDisconnected: string;
   };
 
   // ── Sessions page ──
@@ -129,11 +120,6 @@ export interface Translations {
     dailyTokenUsage: string;
     dailyBreakdown: string;
     perModelBreakdown: string;
-    topSkills: string;
-    skill: string;
-    loads: string;
-    edits: string;
-    lastUsed: string;
     input: string;
     output: string;
     total: string;
@@ -300,11 +286,5 @@ export interface Translations {
   // ── Language switcher ──
   language: {
     switchTo: string;
-  };
-
-  // ── Theme switcher ──
-  theme: {
-    title: string;
-    switchTheme: string;
   };
 }
