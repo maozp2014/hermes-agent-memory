@@ -124,7 +124,7 @@ _MEMORY_SKIP_PATTERNS = [
     ),
     # Config values / secrets
     (
-        r'(api_key|api[_-]?key|secret|password|token|credential)\s*[=:]\s*[\'"][^\'\"]+[\'"]',
+        r'(?:(?:(slack_bot_token|github_api_key|github_token|openai_api_key|anthropic_api_key|aws_access_key_id|aws_secret_access_key|aws_access_key|aws_secret_key|hermes_api_key|client_secret|private_key|auth_token|access_token|refresh_token|github_token|api_key|hermes_key|slack_token|openai_key|anthropic_key|passwd|pwd|credential)|((?<![a-zA-Z0-9_])(?<!_)(secret|token|key)))\s*[=:]\s*[\'"][^\'\"]+[\'"]|(?:(slack_bot_token|github_api_key|github_token|openai_api_key|anthropic_api_key|aws_access_key_id|aws_secret_access_key|aws_access_key|aws_secret_key|hermes_api_key|client_secret|private_key|auth_token|access_token|refresh_token|github_token|api_key|hermes_key|slack_token|openai_key|anthropic_key|passwd|pwd|credential)|((?<![a-zA-Z0-9_])(?<!_)(secret|token|key)))\s*=\s*(?![\d]+(?:\s|$))[^\s\'"#]+|"(slack_bot_token|github_api_key|github_token|openai_api_key|anthropic_api_key|hermes_api_key|api_key)"\s*:\s*"[^"]*")',
         "secrets",
         "敏感信息不要存记忆，配置在 .env 或 config.yaml 中",
     ),
