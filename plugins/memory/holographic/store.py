@@ -316,6 +316,84 @@ class MemoryStore:
             self._rebuild_bank(row["category"])
             return True
 
+    def archive_fact(self, fact_id: int) -> dict:
+        """Move a fact to the archived_facts table (soft-delete with backup).
+
+        Phase 3: soft-delete preserves the full fact for audit/recovery.
+        Returns the archived fact dict, or raises KeyError if not found.
+        """
+        import json as _json
+        from datetime import datetime, timezone
+
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM facts WHERE fact_id = ?", (fact_id,)
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"fact_id {fact_id} not found")
+
+            # Serialize the full row as JSON for the archive
+            fact_dict = dict(row)
+            fact_dict.pop("hrr_vector", None)  # not JSON serializable
+            archived_content = _json.dumps(fact_dict, ensure_ascii=False, default=str)
+
+            # Insert into archived_facts (create table if not exists)
+            self._conn.execute("""
+                CREATE TABLE IF NOT EXISTS archived_facts (
+                    archive_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fact_id      INTEGER NOT NULL,
+                    archived_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    content_json TEXT NOT NULL
+                )
+            """)
+            self._conn.execute(
+                "INSERT INTO archived_facts (fact_id, content_json) VALUES (?, ?)",
+                (fact_id, archived_content),
+            )
+
+            # Hard-delete from active table
+            self._conn.execute(
+                "DELETE FROM fact_entities WHERE fact_id = ?", (fact_id,)
+            )
+            self._conn.execute("DELETE FROM facts WHERE fact_id = ?", (fact_id,))
+            self._conn.commit()
+            self._rebuild_bank(row["category"])
+
+            return {
+                "archived": True,
+                "fact_id": fact_id,
+                "category": row["category"],
+                "content_preview": fact_dict.get("content", "")[:120],
+            }
+
+    def list_archived(self, limit: int = 20) -> list[dict]:
+        """List recently archived facts from the archive table."""
+        import json as _json
+
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT archive_id, fact_id, archived_at, content_json "
+                "FROM archived_facts ORDER BY archived_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+
+        results = []
+        for row in rows:
+            content_json = row["content_json"]
+            try:
+                fact = _json.loads(content_json)
+            except Exception:
+                fact = {"content": content_json[:120]}
+            results.append({
+                "archive_id": row["archive_id"],
+                "fact_id": row["fact_id"],
+                "archived_at": row["archived_at"],
+                "content": fact.get("content", "")[:120],
+                "category": fact.get("category", ""),
+                "trust_score": fact.get("trust_score"),
+            })
+        return results
+
     def list_facts(
         self,
         category: str | None = None,

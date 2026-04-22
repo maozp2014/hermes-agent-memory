@@ -47,15 +47,22 @@ FACT_STORE_SCHEMA = {
         "• related — What connects to an entity? Structural adjacency.\n"
         "• reason — Compositional: facts connected to MULTIPLE entities simultaneously.\n"
         "• contradict — Memory hygiene: find facts making conflicting claims.\n"
-        "• update/remove/list — CRUD operations.\n\n"
-        "IMPORTANT: Before answering questions about the user, ALWAYS probe or reason first."
+        "• update/remove/list — CRUD operations.\n"
+        "• archive — Soft-delete: moves to archived_facts table (Phase 3 backup).\n\n"
+        "IMPORTANT: Before answering questions about the user, ALWAYS probe or reason first.\n\n"
+        "## Phase 3 — Destructive fact operations\n"
+        "contradict returns pairs of conflicting facts. For each pair you MUST:\n"
+        "  1. Present the contradiction to the user\n"
+        "  2. Ask which fact to keep (or both if they are compatible)\n"
+        "  3. Use archive(fact_id=N) for soft-delete, remove only after user confirms\n"
+        "DO NOT auto-delete contradicting facts — always ask the user first."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["add", "search", "probe", "related", "reason", "contradict", "update", "remove", "list"],
+                "enum": ["add", "search", "probe", "related", "reason", "contradict", "update", "remove", "archive", "list", "list_archived"],
             },
             "content": {"type": "string", "description": "Fact content (required for 'add')."},
             "query": {"type": "string", "description": "Search query (required for 'search')."},
@@ -325,6 +332,14 @@ class HolographicMemoryProvider(MemoryProvider):
             elif action == "remove":
                 removed = store.remove_fact(int(args["fact_id"]))
                 return json.dumps({"removed": removed})
+
+            elif action == "archive":
+                result = store.archive_fact(int(args["fact_id"]))
+                return json.dumps({"archived": result})
+
+            elif action == "list_archived":
+                facts = store.list_archived(limit=int(args.get("limit", 20)))
+                return json.dumps({"facts": facts, "count": len(facts)})
 
             elif action == "list":
                 facts = store.list_facts(
