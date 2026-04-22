@@ -176,3 +176,44 @@ python -m pytest tests/ -q
 MIT — see [LICENSE](LICENSE).
 
 Built by [Nous Research](https://nousresearch.com).
+
+
+---
+
+## 🧠 Memory System Phase 1 (2026-04-23)
+
+This branch contains Phase 1 enhancements to the Hermes memory system.
+
+### What changed
+
+**1. Quality gate (`_check_memory_quality`)**
+`tools/memory_tool.py` now validates entries before writing:
+- Detects hardcoded secrets (API keys, tokens, credentials) — covers unquoted env vars, quoted assignments, and JSON format
+- Detects file paths mentioning `~/.hermes` or `~/.ssh` 
+- Detects threat patterns (curl/wget exfiltration, suspicious command combos)
+
+**2. Four-type classification**
+`agent/prompt_builder.py` `MEMORY_GUIDANCE` now uses a four-type taxonomy:
+- `[PREFERENCE]` / USER MEMORY — user identity, preferences, communication style
+- `[FEEDBACK]` / FEEDBACK MEMORY — corrections and affirmations with rule + reason + scope
+- `[CONTEXT]` / CONTEXT MEMORY — environment facts, project conventions, tool quirks
+- `[REFERENCE]` / REFERENCE MEMORY — reusable procedural knowledge, API notes, lessons learned
+
+**3. Backward migration**
+Existing `MEMORY.md` entries retroactively labeled with type prefixes.
+
+### Files changed
+- `agent/prompt_builder.py` — new `MEMORY_GUIDANCE` (4-type taxonomy)
+- `tools/memory_tool.py` — quality gate, threat patterns, refined secrets regex (917 chars, 36/36 test cases)
+
+### Known issues
+- `API_SECRET` (generic `secret` as suffix) not detected due to regex design choice (generic keywords require word boundary)
+- Code snippets/imports bypassed by separate `_MEMORY_SKIP_PATTERNS` (not quality gate failures)
+
+### Branches in this repo
+| Branch | Files | Description |
+|--------|-------|-------------|
+| `main` | 2,268 | Upstream NousResearch sync |
+| `feat/memory-enhancement-phase1` | 1,703 | Phase 1 changes only |
+| `full-upload` | 2,324 | Full codebase + Phase 1 |
+
